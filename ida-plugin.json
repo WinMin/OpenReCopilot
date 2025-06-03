@@ -1,0 +1,9 @@
+{
+    "IDAMetadataDescriptorVersion": 1,
+    "plugin" :
+    {
+      "name" : "ReCopilot",
+      "entryPoint" : "recopilot.py",
+      "version": "v0.1-beta"
+    }
+  }
