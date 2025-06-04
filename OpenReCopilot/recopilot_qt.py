@@ -19,7 +19,33 @@ from config import settings_manager, PROMPT_TEMPLATE
 from feedback import send_feedback
 from remote_model import OpenAIModel
 
+def create_variable_selection_view(ea):
+    """Creates a variable selection view."""
+    try:
+        f = idaapi.get_func(ea)
+        if not f:
+            print("[!] No function found at this address")
+            return None
 
+        df = ida_hexrays.decompile(f)
+        if not df:
+            print("[!] Failed to decompile function")
+            return None
+
+        args = []
+        vars = []
+        for var in df.lvars:
+            if var.is_arg_var:
+                args.append(var.name)
+            else:
+                vars.append(var.name)
+
+        form = VariableSelectionForm(ea, args, vars)
+        form.Show()
+        return form
+    except Exception as e:
+        print(f"Error creating variable selection view: {e}")
+        return None
 class DecompilationViewPluginForm(ida_kernwin.PluginForm):
     def __init__(self, title, initial_content):
         super(DecompilationViewPluginForm, self).__init__()
@@ -280,7 +306,15 @@ class NameTypeWidget(QWidget):
     def on_remove_clicked(self):
         self.field_removed.emit(self) # Emit the widget itself for removal
 
-
+def create_user_confirm_view_for_funcname(ea, task_tag, prompt, response_raw, response):
+    form = UserConfirmFormForFuncName(ea, task_tag, prompt, response_raw, response)
+    form.Show()
+    return True
+    
+def create_user_confirm_view(ea, task_tag, prompt, response_raw, response):
+    form = UserConfirmForm(ea, task_tag, prompt, response_raw, response)
+    form.Show()
+    return True
 class StructFieldWidget(NameTypeWidget):
     field_added = QtCore.pyqtSignal()
     field_removed = QtCore.pyqtSignal(QWidget)
