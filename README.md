@@ -1,6 +1,6 @@
 # OpenReCopilot
 
-OpenReCopilot 是对 [ReCopilot](https://recopilot.qianxin.com/) IDA Pro 插件的逆向工程项目。ReCopilot 是一个基于 AI 的二进制分析辅助工具，原版使用 PyArmor 进行代码保护。本项目通过逆向工程恢复了其源代码，使其可以与任意兼容 OpenAI API 的大语言模型配合使用。
+OpenReCopilot 是对 [ReCopilot](https://tqgpt.qianxin.com/recopilot/) IDA Pro 插件的逆向工程项目。ReCopilot 是一个基于 AI 的二进制分析辅助工具，原版使用 PyArmor 进行代码保护。本项目通过逆向工程恢复了其源代码，使其可以与任意兼容 OpenAI API 的大语言模型配合使用。
 
 ## 声明
 
