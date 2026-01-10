@@ -107,6 +107,10 @@ OpenReCopilot/
 
 2. **模型输出格式** - 某些模型可能不严格遵循 JSON 输出格式，建议使用 GPT-4o 等能力较强的模型
 
+## 演示
+
+![demo](img/demo.png)
+
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
