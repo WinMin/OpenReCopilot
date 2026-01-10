@@ -1,0 +1,17 @@
+# ReCopilot dependencies
+# Note: IDA Pro modules (idaapi, idc, ida_hexrays, etc.) are provided by IDA Pro itself
+
+# OpenAI API client
+openai>=1.58.1
+
+# HTTP requests library
+requests>=2.31.0
+
+# Terminal color output
+termcolor>=2.4.0
+
+# Code syntax highlighting
+pygments>=2.17.0
+
+# PyQt5 is usually bundled with IDA Pro, but can be installed separately if needed
+# PyQt5>=5.15.0

@@ -150,26 +150,36 @@ def specific_vars_analysis(ea):
         print("[!] 创建变量选择视图失败。")
         return
 
-    # 这是一个闭包，捕获 var_selection_form
+    # 检查表单是否有选择
     def check_form_has_selection():
         if hasattr(var_selection_form, 'selected_args') and hasattr(var_selection_form, 'selected_vars'):
              return bool(var_selection_form.selected_args or var_selection_form.selected_vars)
-        return False # 表单可能还未完全初始化或已关闭
+        return False
 
-    # 等待用户选择
-    while var_selection_form.isVisible() and not check_form_has_selection(): # 检查表单是否可见
+    # 检查表单窗口是否仍然存在
+    def is_form_visible():
+        if hasattr(var_selection_form, 'title'):
+            widget = ida_execute(ida_kernwin.find_widget, (var_selection_form.title,))
+            return widget is not None
+        return False
+
+    # 等待用户选择（最多等待60秒）
+    max_wait = 600  # 60秒
+    wait_count = 0
+    while wait_count < max_wait:
+        if check_form_has_selection():
+            break
+        if not is_form_visible():
+            break
         time.sleep(0.1)
-    
-    if not var_selection_form.isVisible() and not check_form_has_selection():
-        print("[!] 变量选择视图已关闭，未选择任何内容。")
+        wait_count += 1
+
+    if not check_form_has_selection():
+        print("[!] 变量选择视图已关闭或未选择任何内容。")
         return
 
     selected_args_list = getattr(var_selection_form, 'selected_args', [])
     selected_vars_list = getattr(var_selection_form, 'selected_vars', [])
-    
-    # 关闭选择对话框 (如果它仍然打开且有选择)
-    if var_selection_form.isVisible():
-        var_selection_form.close() # 或者 var_selection_form.done(1) 如果是QDialog
 
     if not selected_args_list and not selected_vars_list:
         print('[!] 未选择任何变量或参数。')
@@ -177,7 +187,7 @@ def specific_vars_analysis(ea):
 
     print(f"[*] 已选参数: {selected_args_list}")
     print(f"[*] 已选变量: {selected_vars_list}")
-    
+
     all_selected_items = selected_args_list + selected_vars_list
     common_analysis_logic(ea, '<specific-vars>', selected_items=all_selected_items, check_refine_parser_args_count=4)
 
@@ -259,31 +269,31 @@ class BaseAnalysisHandler(ida_kernwin.action_handler_t):
         return ida_kernwin.AST_DISABLE_FOR_WIDGET
 
 class FuncAnalysisHandler(BaseAnalysisHandler):
-    analysis_function = func_analysis
+    analysis_function = staticmethod(func_analysis)
     action_description = "函数整体分析"
 
 class DecompilationHandler(BaseAnalysisHandler):
-    analysis_function = decompilation
+    analysis_function = staticmethod(decompilation)
     action_description = "反编译"
 
 class SpecificVariableAnalysisHandler(BaseAnalysisHandler):
-    analysis_function = specific_vars_analysis
+    analysis_function = staticmethod(specific_vars_analysis)
     action_description = "特定变量分析"
 
 class AllVariableAnalysisHandler(BaseAnalysisHandler):
-    analysis_function = all_vars_analysis
+    analysis_function = staticmethod(all_vars_analysis)
     action_description = "所有变量分析"
 
 class AllArgumentAnalysisHandler(BaseAnalysisHandler):
-    analysis_function = all_args_analysis
+    analysis_function = staticmethod(all_args_analysis)
     action_description = "所有参数分析"
 
 class FuncNameAnalysisHandler(BaseAnalysisHandler):
-    analysis_function = func_name_analysis
+    analysis_function = staticmethod(func_name_analysis)
     action_description = "函数名称分析"
 
 class SummaryAnalysisHandler(BaseAnalysisHandler):
-    analysis_function = summary_analysis
+    analysis_function = staticmethod(summary_analysis)
     action_description = "总结分析"
 
 

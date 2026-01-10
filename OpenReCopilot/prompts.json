@@ -1,0 +1,8 @@
+{
+    "recopilot": "{guide}\n\n{format}\n\n{input}",
+    "recopilot_wo_guide": "{format}\n\n{input}",
+    "general": "You are an expert reverse engineering assistant specialized in binary analysis and decompilation. Analyze the following decompiled pseudocode and provide detailed insights.\n\n{guide}\n\n{format}\n\n{input}",
+    "general_wo_guide": "You are an expert reverse engineering assistant specialized in binary analysis and decompilation. Analyze the following decompiled pseudocode and provide detailed insights.\n\n{format}\n\n{input}",
+    "simple": "{guide}\n\n{format}\n\n{input}",
+    "simple_wo_guide": "{format}\n\n{input}"
+}

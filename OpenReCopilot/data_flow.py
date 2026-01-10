@@ -141,9 +141,16 @@ class VarUsage:
     def __str__(self):
         pcode_line_str = self.pcode_line.strip() if self.pcode_line else "Get pseudocode line error"
         alias_info = f"// alias: {self.var_type} {self.var_name} == {self.alias_name}" if self.alias_name else ""
-        
+
         indent = '\t' * abs(self.context_depth if self.context_depth is not None else 0)
-        return f"{indent}{self.func_name}@L{hex(self.line_addr) if self.line_addr else '?'}| |{pcode_line_str} {alias_info}".strip()
+        # 处理 line_addr 可能是字符串或整数的情况
+        if isinstance(self.line_addr, int) and self.line_addr:
+            line_addr_str = hex(self.line_addr)
+        elif self.line_addr:
+            line_addr_str = str(self.line_addr)
+        else:
+            line_addr_str = '?'
+        return f"{indent}{self.func_name}@L{line_addr_str}| |{pcode_line_str} {alias_info}".strip()
 
     def colored_print(self):
         pcode_line_str = ""
@@ -158,7 +165,14 @@ class VarUsage:
         
         indent = '\t' * abs(self.context_depth if self.context_depth is not None else 0)
         func_part = colored(self.func_name if self.func_name else "?", 'blue')
-        addr_part = colored(hex(self.line_addr) if self.line_addr else '?', 'blue')
+        # 处理 line_addr 可能是字符串或整数的情况
+        if isinstance(self.line_addr, int) and self.line_addr:
+            addr_str = hex(self.line_addr)
+        elif self.line_addr:
+            addr_str = str(self.line_addr)
+        else:
+            addr_str = '?'
+        addr_part = colored(addr_str, 'blue')
 
         return f"{indent}{func_part}@L{addr_part}| |{pcode_line_str} {alias_info}".strip()
 
@@ -393,7 +407,18 @@ class DataFlowAnalyzer:
             if key not in unique_usages_dict: # Keep first encountered, or based on some logic
                 unique_usages_dict[key] = usage
         
-        sorted_unique_usages = sorted(list(unique_usages_dict.values()), key=lambda u: (u.func_name or "", u.line_addr or 0))
+        # 排序时确保 line_addr 是整数类型
+        def get_sort_key(u):
+            func_name = u.func_name or ""
+            line_addr = u.line_addr
+            # 确保 line_addr 是整数用于排序
+            if isinstance(line_addr, str):
+                line_addr = 0
+            elif line_addr is None:
+                line_addr = 0
+            return (func_name, line_addr)
+
+        sorted_unique_usages = sorted(list(unique_usages_dict.values()), key=get_sort_key)
 
         # Store results for callee and caller trace based on context_depth
         callee_results = [] # context_depth >= 0
@@ -460,7 +485,17 @@ class DataFlowAnalyzer:
             if key not in unique_filtered_usages:
                  unique_filtered_usages[key] = usage
         
-        sorted_filtered_usages = sorted(list(unique_filtered_usages.values()), key=lambda u: (u.func_name or "", u.line_addr or 0))
+        # 排序时确保 line_addr 是整数类型
+        def get_filter_sort_key(u):
+            func_name = u.func_name or ""
+            line_addr = u.line_addr
+            if isinstance(line_addr, str):
+                line_addr = 0
+            elif line_addr is None:
+                line_addr = 0
+            return (func_name, line_addr)
+
+        sorted_filtered_usages = sorted(list(unique_filtered_usages.values()), key=get_filter_sort_key)
 
         for usage in sorted_filtered_usages:
             depth = usage.context_depth if usage.context_depth is not None else 0
@@ -513,7 +548,7 @@ class DataFlowVisitor(ida_hexrays.ctree_visitor_t):
                         analyzer.current_cfunc,
                         var_type_str_for_decl, # Use potentially stripped type for regex
                         lvar.name,
-                        is_arg=lvar.is_arg_var()
+                        is_arg=lvar.is_arg_var
                     )
                     alias = self.alias_mapping.get(lvar.name) # Check if it's already an alias from context
 
@@ -573,12 +608,15 @@ class DataFlowVisitor(ida_hexrays.ctree_visitor_t):
                 break
             parent_idx += 1
 
-        coords = self.analyzer.current_cfunc.find_item_coords(expr)
-        if coords:
-            line_no = coords.lnnum
+        # find_item_coords returns bool, coords are returned via pointer parameters
+        y_holder = idaapi.int_pointer()
+        x_holder = idaapi.int_pointer()
+        coords_found = self.analyzer.current_cfunc.find_item_coords(expr, x_holder, y_holder)
+        if coords_found:
+            line_no = y_holder.value()
             pcode_line = self.analyzer._get_pcode_line(line_no)
-            # Attempt to get EA of the line if possible
-            item_ea = ida_auto.get_ea_name(coords.ea) if coords.ea != idaapi.BADADDR else line_no # Heuristic
+            # Use line number as item_ea since we don't have direct EA access
+            item_ea = line_no
 
             final_alias = self._find_final_alias(var_name_str)
 

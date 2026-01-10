@@ -41,7 +41,7 @@ def create_variable_selection_view(ea):
                 vars.append(var.name)
 
         form = VariableSelectionForm(ea, args, vars)
-        form.Show()
+        form.Show(form.title)
         return form
     except Exception as e:
         print(f"Error creating variable selection view: {e}")
@@ -61,7 +61,7 @@ class DecompilationViewPluginForm(ida_kernwin.PluginForm):
             ida_kernwin.close_widget(existing_widget, 0)
 
     def OnCreate(self, form):
-        self.parent_widget = idaapi.FormToPyQtWidget(form)
+        self.parent_widget = self.FormToPyQtWidget(form)
         layout = QVBoxLayout()
         layout.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignVCenter)
         self.code_browser = QtWidgets.QTextBrowser()
@@ -91,23 +91,28 @@ class DecompilationViewPluginForm(ida_kernwin.PluginForm):
         )
 
 
-def create_decompilation_view(ea, content):
+def create_decompilation_view(ea, task_tag, prompt, response_raw, response):
     """
     在IDA主线程中创建反编译视图 (使用PluginForm)
-    
+
     Args:
         ea: func addr
-        content: view content
-        
+        task_tag: task tag (unused but kept for consistent signature)
+        prompt: prompt for feedback (unused but kept for consistent signature)
+        response_raw: raw response (unused but kept for consistent signature)
+        response: processed response - the decompiled code content
+
     Returns:
         bool: True if success, False otherwise
     """
     print('[*] Try to create ReCopilot decompilation view using PluginForm')
     func_name = idc.get_func_name(ea)
     title = f'ReCopilot Decompilation - {func_name}'
+    # 对于反编译视图，使用 response 作为内容（已解析的响应）
+    content = response if response else response_raw
     try:
         form = DecompilationViewPluginForm(title, content)
-        form.Show()
+        form.Show()  # Show() already uses self.title internally
         if ida_kernwin.find_widget(title):
             print(f'[+] Successfully created/shown decompilation view with PluginForm, title: {title}')
             return True
@@ -308,12 +313,14 @@ class NameTypeWidget(QWidget):
 
 def create_user_confirm_view_for_funcname(ea, task_tag, prompt, response_raw, response):
     form = UserConfirmFormForFuncName(ea, task_tag, prompt, response_raw, response)
-    form.Show()
+    title = f'ReCopilot - Function Name Analysis - {hex(ea)}'
+    form.Show(title)
     return True
-    
+
 def create_user_confirm_view(ea, task_tag, prompt, response_raw, response):
     form = UserConfirmForm(ea, task_tag, prompt, response_raw, response)
-    form.Show()
+    title = f'ReCopilot - {task_tag} - {hex(ea)}'
+    form.Show(title)
     return True
 class StructFieldWidget(NameTypeWidget):
     field_added = QtCore.pyqtSignal()
@@ -692,7 +699,7 @@ class UserConfirmForm(ida_kernwin.PluginForm):
         self.widgets = {}
 
     def OnCreate(self, form):
-        self.parent = idaapi.FormToPyQtWidget(form)
+        self.parent = self.FormToPyQtWidget(form)
         self.PopulateForm()
 
     def PopulateForm(self):
@@ -712,26 +719,49 @@ class UserConfirmForm(ida_kernwin.PluginForm):
             main_layout.addWidget(ret_type_widget)
 
         # Function Arguments
-        if 'args' in self.response:
+        if 'args' in self.response and self.response['args']:
             args_group = QGroupBox('Function Arguments')
             args_layout = QVBoxLayout(args_group)
-            self.widgets['args'] = {} # Store individual argument widgets
-            for arg_name, arg_type in self.response['args'].items():
-                arg_widget = ComplexTypeWidget(arg_name, arg_type)
-                self.widgets['args'][arg_name] = arg_widget
-                args_layout.addWidget(arg_widget)
+            self.widgets['args'] = {}
+            args_data = self.response['args']
+            # Handle both dict and list formats
+            if isinstance(args_data, dict):
+                for arg_name, arg_type in args_data.items():
+                    arg_widget = ComplexTypeWidget(arg_name, arg_type)
+                    self.widgets['args'][arg_name] = arg_widget
+                    args_layout.addWidget(arg_widget)
+            elif isinstance(args_data, list):
+                for item in args_data:
+                    if isinstance(item, dict):
+                        # Format: {'original': [...], 'prediction': [...]}
+                        arg_name = item.get('original', ['', ''])[1] if isinstance(item.get('original'), list) else str(item.get('original', ''))
+                        arg_type = item.get('prediction', [])
+                        arg_widget = ComplexTypeWidget(arg_name, arg_type)
+                        self.widgets['args'][arg_name] = arg_widget
+                        args_layout.addWidget(arg_widget)
             args_group.setLayout(args_layout)
             main_layout.addWidget(args_group)
 
         # Local Variables
-        if 'vars' in self.response:
+        if 'vars' in self.response and self.response['vars']:
             vars_group = QGroupBox('Local Variables')
             vars_layout = QVBoxLayout(vars_group)
-            self.widgets['vars'] = {} # Store individual variable widgets
-            for var_name, var_type in self.response['vars'].items():
-                var_widget = ComplexTypeWidget(var_name, var_type)
-                self.widgets['vars'][var_name] = var_widget
-                vars_layout.addWidget(var_widget)
+            self.widgets['vars'] = {}
+            vars_data = self.response['vars']
+            # Handle both dict and list formats
+            if isinstance(vars_data, dict):
+                for var_name, var_type in vars_data.items():
+                    var_widget = ComplexTypeWidget(var_name, var_type)
+                    self.widgets['vars'][var_name] = var_widget
+                    vars_layout.addWidget(var_widget)
+            elif isinstance(vars_data, list):
+                for item in vars_data:
+                    if isinstance(item, dict):
+                        var_name = item.get('original', ['', ''])[1] if isinstance(item.get('original'), list) else str(item.get('original', ''))
+                        var_type = item.get('prediction', [])
+                        var_widget = ComplexTypeWidget(var_name, var_type)
+                        self.widgets['vars'][var_name] = var_widget
+                        vars_layout.addWidget(var_widget)
             vars_group.setLayout(vars_layout)
             main_layout.addWidget(vars_group)
 
@@ -844,7 +874,7 @@ class UserConfirmFormForFuncName(ida_kernwin.PluginForm):
         self.widgets = [] # Simplified for func name only
 
     def OnCreate(self, form):
-        self.parent = idaapi.FormToPyQtWidget(form)
+        self.parent = self.FormToPyQtWidget(form)
         self.PopulateForm()
 
     def PopulateForm(self):
@@ -944,7 +974,7 @@ class VariableSelectionForm(ida_kernwin.PluginForm):
         self.title = f'Select Variables to Analyze - {hex(ea)}'
 
     def OnCreate(self, form):
-        self.parent = idaapi.FormToPyQtWidget(form)
+        self.parent = self.FormToPyQtWidget(form)
         self.PopulateForm()
         ida_kernwin.set_dock_pos(self.title, 'Output window', ida_kernwin.DP_RIGHT) # Dock to output window
 
@@ -1131,13 +1161,17 @@ class ReCopilotSettingsDialog(QDialog):
         """Save current settings and close dialog."""
         model_name = self.model_name_edit.text().strip()
         prompt_template = self.prompt_template_combo.currentText()
+        base_url = self.base_url_edit.text().strip()
+        api_key = self.api_key_edit.text().strip()
 
-        # Validation logic based on model name and prompt template prefixes
-        if model_name.startswith('recopilot') and not prompt_template.startswith('recopilot'):
-            QMessageBox.warning(self, 'Invalid Configuration (无效配置)', 'ReCopilot models must use recopilot* prompt template.\n(ReCopilot 模型必须使用 recopilot* 提示词模版)')
+        # 基本验证
+        if not model_name:
+            QMessageBox.warning(self, 'Invalid Configuration', 'Model name cannot be empty.')
             return
-        elif model_name.startswith('general') and not prompt_template.startswith('general'):
-            QMessageBox.warning(self, 'Invalid Configuration (无效配置)', 'General LLMs must use general* prompt template.\n(通用模型必须使用 general* 提示词模版)')
+
+        # 如果使用第三方API，需要提供API Key
+        if base_url and not api_key:
+            QMessageBox.warning(self, 'Invalid Configuration', 'API Key is required when using custom Base URL.')
             return
 
         new_settings = {

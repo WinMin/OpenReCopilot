@@ -1,5 +1,5 @@
-# 文件名: <frozen ..checker>
-# 模块: <module>
+# 文件名: checker.py
+# ReCopilot响应解析和检查模块
 
 import re
 import os
@@ -7,65 +7,19 @@ import json
 import textwrap
 from collections import defaultdict
 
-# 模拟来自 IDA Pro 和其他自定义模块的导入
-# 假设这些模块和函数已在环境中定义或从 ext_info.py 导入
-# For standalone understanding, some mocks are provided.
+# IDA Pro API导入
+try:
+    import ida_hexrays
+    import ida_typeinf
+    from ida_hexrays import decompile, DecompilationFailure
+except ImportError:
+    # 如果不在IDA环境中运行，提供模拟
+    class DecompilationFailure(Exception):
+        pass
 
-class DecompilationFailure(Exception):
-    pass
-
-def decompile(ea):
-    print(f"[SIMULATED] Decompiling {hex(ea)} in checker.py")
-    if ea == 0xBADBAD: # 模拟无法反编译的情况
+    def decompile(ea):
+        """模拟反编译函数，仅用于测试"""
         return None
-    
-    class MockLvar:
-        def __init__(self, name, type_str, is_arg):
-            self.name = name
-            self._type_str = type_str
-            self._is_arg = is_arg
-            self.defea = ea + 0x10 # Mock def_ea
-            
-            class MockLocation:
-                def is_stkoff(self): return "stack" in name
-                def stkoff(self): return 16 if "stack" in name else 0
-                def is_reg1(self): return "reg" in name and "pair" not in name
-                def reg1(self): return "eax" if "reg" in name else ""
-                def is_reg2(self): return "pair" in name
-                def reg2(self): return "edx" if "pair" in name else ""
-
-            self.location = MockLocation()
-
-        def type(self):
-            ti = ida_typeinf.tinfo_t()
-            # Simplified type parsing for mock
-            if self._type_str:
-                 ida_typeinf.parse_decl(ti, None, f"{self._type_str} {self.name};", ida_typeinf.PT_VAR)
-            return ti
-        
-        def is_arg_var(self):
-            return self._is_arg
-
-    class MockCfunc:
-        def __init__(self, ea_addr):
-            self.entry_ea = ea_addr
-            # Simulate lvars based on common patterns or test cases
-            self.lvars = [
-                MockLvar("arg_a", "int", True),
-                MockLvar("arg_b_ptr", "char*", True),
-                MockLvar("local_var1", "MY_STRUCT", False),
-                MockLvar("local_stack_var", "DWORD", False),
-            ]
-            self.arguments = [lv for lv in self.lvars if lv.is_arg_var()]
-
-        def get_pseudocode(self): # Returns list of simpleline_t
-             # Each simpleline_t can be converted to str
-            return [f"// Pseudocode line 1 for {hex(self.entry_ea)}", "  int x = arg_a;", "  return;"]
-
-
-    if ea is not None: # Check if ea is not None
-        return MockCfunc(ea)
-    return None
 
 # --- Helper Functions for Parsing Model Output ---
 
@@ -127,7 +81,7 @@ def find_output_by_re(output: str) -> str:
         return matches[-1] # Returns the content of the last <Output> tag
     return ""
 
-def parse_model_response_json(json_str_input: str) -> dict or None:
+def parse_model_response_json(json_str_input: str):
     """
     Parses a string potentially containing JSON, possibly wrapped in tags or markdown.
     """
@@ -177,7 +131,7 @@ def parse_model_response_json(json_str_input: str) -> dict or None:
         print(f"[!💥] parser json error: {e} for string: '{processed_str[:100]}...'")
         return None
 
-def parse_model_response_str(response: str) -> str or None:
+def parse_model_response_str(response: str):
     """
     Parses a string potentially containing a plain string output, 
     possibly wrapped in tags or markdown.
@@ -219,7 +173,7 @@ def parse_model_response_str(response: str) -> str or None:
 # without more context on their exact input/output formats and IDA interactions.
 # The stubs below reflect the names and argument counts.)
 
-def parse_var_pred(var_pred_item: list or dict) -> tuple:
+def parse_var_pred(var_pred_item):
     """
     Parses a single variable prediction item.
     Expected input format is complex and can be a list or dict.
@@ -331,7 +285,7 @@ def funcname_check_and_refine(funcname_preds):
     return [] # Default for list if input is not str or list, or list is malformed
 
 
-def summary_check_and_refine(summary_pred: dict) -> dict:
+def summary_check_and_refine(summary_pred):
     """
     Refines the summary prediction dictionary.
     Fills missing fields and formats text.
@@ -395,7 +349,7 @@ def is_no_original_list(items: list) -> bool:
     return True
 
 
-def get_func_args(func_ea: int) -> list or None:
+def get_func_args(func_ea: int):
     """
     Gets a list of argument names for the given function.
     """
@@ -415,7 +369,7 @@ def get_func_args(func_ea: int) -> list or None:
         return None
 
 
-def get_func_args_vars(func_ea: int) -> tuple or None:
+def get_func_args_vars(func_ea: int):
     """
     Gets lists of argument names and local variable names for the given function.
     Returns (arg_names_list, local_vars_names_list) or (None, None).
@@ -435,7 +389,7 @@ def get_func_args_vars(func_ea: int) -> tuple or None:
         if hasattr(cfunc, 'lvars'): # lvars is a list of lvar_t
             for lvar in cfunc.lvars:
                 if lvar and hasattr(lvar, 'name') and lvar.name and \
-                   hasattr(lvar, 'is_arg_var') and not lvar.is_arg_var():
+                   hasattr(lvar, 'is_arg_var') and not lvar.is_arg_var:
                     local_vars_names.append(lvar.name)
         
         return arg_names, local_vars_names
@@ -527,7 +481,7 @@ def func_analysis_check_and_refine(func_analysis_pred: dict, arg_names: list = N
     return refined_response
 
 
-def response_check_and_refine(response: dict or str, task_tag: str, arg_names: list = None, var_names: list = None):
+def response_check_and_refine(response, task_tag: str, arg_names=None, var_names=None):
     """
     Main function to check and refine the model's response based on the task tag.
     """
@@ -567,7 +521,7 @@ def response_check_and_refine(response: dict or str, task_tag: str, arg_names: l
         raise NotImplementedError(f"Not implemented task tag: {task_tag}")
 
 
-def split_pred_to_var_arg(func_ea: int, response: dict) -> dict:
+def split_pred_to_var_arg(func_ea: int, response):
     """
     Splits the 'vars' predictions in the response into 'args' and 'vars'
     based on whether they are actual function arguments.
@@ -610,7 +564,7 @@ def split_pred_to_var_arg(func_ea: int, response: dict) -> dict:
                 # Check if var_name (from prediction key or original name) is an actual argument
                 is_an_arg = False
                 for lvar in cfunc.lvars: # Iterate actual lvars to find a match
-                    if lvar.name == var_name and lvar.is_arg_var():
+                    if lvar.name == var_name and lvar.is_arg_var:
                         is_an_arg = True
                         break
                 

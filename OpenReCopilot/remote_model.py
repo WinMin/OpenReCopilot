@@ -68,26 +68,38 @@ class OpenAIModel:
             print(f"[🔗] OpenAIModel.call_model: model_name={model_name_setting}, timeout={timeout}s")
             print(f"[🔗] OpenAIModel.call_model: send {len(formatted_prompt)} chars prompt")
 
-        # 3. 初始化 OpenAI 客户端
+        # 3. 初始化 OpenAI 异步客户端（支持第三方API）
         try:
-            client_args = {}
-            if settings_manager.settings.get('base_url'):
-                client_args['base_url'] = settings_manager.settings['base_url']
-            if settings_manager.settings.get('api_key'):
-                client_args['api_key'] = settings_manager.settings['api_key']
-            
-            client = openai.OpenAI(**client_args)
+            base_url = settings_manager.settings.get('base_url', '')
+            api_key = settings_manager.settings.get('api_key', 'sk-none')
+            model_name = settings_manager.settings.get('model_name', 'gpt-3.5-turbo')
+
+            # 构建客户端参数
+            client_args = {'api_key': api_key}
+            if base_url:
+                # 确保 base_url 格式正确
+                if not base_url.endswith('/v1') and not base_url.endswith('/v1/'):
+                    if not base_url.endswith('/'):
+                        base_url += '/v1'
+                    else:
+                        base_url += 'v1'
+                client_args['base_url'] = base_url
+
+            # 使用异步客户端
+            client = openai.AsyncOpenAI(**client_args)
 
             # 4. 构建消息并发送请求
             messages = [{"role": "user", "content": formatted_prompt}]
-            
+
+            print(f"[🔗] Calling model: {model_name} at {base_url or 'OpenAI default'}")
+
             self._current_completion = await client.chat.completions.create(
-                model=settings_manager.settings.get('model_name', 'gpt-3.5-turbo'), # 从配置获取模型名称
+                model=model_name,
                 temperature=0.6,
                 stream=True,
-                max_tokens=settings_manager.settings.get('max_output_tokens', 2048), # 从配置获取
+                max_tokens=settings_manager.settings.get('max_output_tokens', 2048),
                 messages=messages,
-                timeout=float(timeout) # 确保是浮点数
+                timeout=float(timeout)
             )
 
             # 5. 处理流式响应
@@ -121,10 +133,18 @@ class OpenAIModel:
             final_response_text = "".join(reasoning_content_parts)
             return final_response_text, prompt_for_feedback
 
-        except openai.Timeout as e: # 更具体的 OpenAI 超时
+        except openai.APITimeoutError as e:
             print(f"[!💥] Error: OpenAI API request timed out: {e}")
-            self._current_completion = None # 清理
+            self._current_completion = None
             return f"<RequestException>Request timed out: {e}", prompt_for_feedback
+        except openai.APIConnectionError as e:
+            print(f"[!💥] Error: Failed to connect to API: {e}")
+            self._current_completion = None
+            return f"<RequestException>Connection failed: {e}", prompt_for_feedback
+        except openai.AuthenticationError as e:
+            print(f"[!💥] Error: API authentication failed: {e}")
+            self._current_completion = None
+            return f"<RequestException>Authentication failed - check your API key: {e}", prompt_for_feedback
         except Exception as e:
             print(f"[!💥] Error in OpenAIModel.call_model: {e}")
             traceback.print_exc()

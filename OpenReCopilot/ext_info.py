@@ -33,6 +33,15 @@ DATA_FLOW_ANALYSIS_ENABLED = settings_manager.settings['data_flow_analysis']
 
 SUPPORT_FUNC_TYPES = set(TASK_GUIDES.keys())
 
+# 无意义的函数名列表（编译器生成的函数等）
+MEANINGLESS_NAME_LIST = frozenset({
+    'frame_dummy', 'call_weak_fn', '__libc_csu_fini', '__libc_csu_init',
+    'register_tm_clones', 'deregister_tm_clones', '__do_global_ctors_aux',
+    '__do_global_dtors_aux', '__x86.get_pc_thunk.ax', '__x86.get_pc_thunk.bp',
+    '__x86.get_pc_thunk.bx', '__x86.get_pc_thunk.cx', '__x86.get_pc_thunk.di',
+    '__x86.get_pc_thunk.dx', '__x86.get_pc_thunk.si'
+})
+
 DATA_FLOW_TEMPLATE = '<Data-Flow>\nTips: the alias expressions below are used to present the relationship between the local variable and the variable in target function. And the left value of `==` is the local variable and type, the right value is the usage pattern of the variable in target function.\n{}\n</Data-Flow>'
 INPUT_TEMPLATE = '<context-pseudocode>\n{context}\n</context-pseudocode>\n<pseudocode>\n{target_func}\n</pseudocode>\n<Call-Chains>\n{call_chains}\n</Call-Chains>\n{data_flow}\nAnalysis Task Tag:\n{task_tag}'
 
@@ -344,8 +353,8 @@ def get_structs_enums(var_list):
     unroller = StructUnroller() # Default max_depth=3
 
     for var_info in var_list:
-        # Assuming var_info is an object with 'type' attribute that is a tinfo_t
-        var_type = var_info.type.copy() # Get a copy to avoid modifying original
+        # lvar_t.type() is a method that returns tinfo_t
+        var_type = var_info.type().copy() # Get a copy to avoid modifying original
         type_str = str(var_type) # Initial string representation
 
         # Process pointers and const qualifiers for the string representation
@@ -415,7 +424,7 @@ def get_var_info(var_list):
     var_info_list = []
     for var in var_list: # Assuming var is an object with name, type, defea, location
         var_name = var.name
-        var_type = var.type.copy() # Get a copy
+        var_type = var.type().copy() # lvar_t.type() is a method
         var_type_str = str(var_type)
         var_defea = var.defea
         var_location = var.location # assuming location is an object with is_stkoff, stkoff, is_reg1, reg1, is_reg2, reg2
@@ -750,7 +759,7 @@ class ContextBuilder:
             if idaapi.decode_insn(insn, head_ea) and ida_idp.is_call_insn(insn):
                 for xref in idautils.XrefsFrom(head_ea, ida_xref.XREF_ALL):
                     # Check xref type for calls/jumps to code
-                    if xref.type in (ida_xref.fl_CN, ida_xref.fl_CF, ida_xref.fl_JN, ida_xref.fl_JF) and idaapi.iscode(idc.get_full_flags(xref.to)):
+                    if xref.type in (ida_xref.fl_CN, ida_xref.fl_CF, ida_xref.fl_JN, ida_xref.fl_JF) and idc.is_code(idc.get_full_flags(xref.to)):
                         callee_ea = xref.to
                         callee_func = ida_funcs.get_func(callee_ea)
                         if callee_func:
@@ -900,6 +909,12 @@ class ContextBuilder:
         """
         return "\n".join(sorted(list(self.call_chains)))
 
+    def get_incontext_funcs(self):
+        """
+        Returns a set of all function EAs that are in the context (both callees and callers).
+        """
+        return set(self.context_callee_funcs.keys()).union(self.context_caller_funcs.keys())
+
 
 def get_numbers_from_pcode(pcode):
     """
@@ -986,7 +1001,9 @@ def build_prompt(func_ea, task_tag, args=None):
         if cfunc is None:
             raise DecompilationFailure
         
-        target_pcode_lines = cfunc.get_pseudocode()
+        target_pcode_obj = cfunc.get_pseudocode()
+        # Convert simpleline_t objects to strings
+        target_pcode_lines = [str(line.line) for line in target_pcode_obj]
         pcode_line_cnt = len(target_pcode_lines)
         pcode_var_cnt = len(cfunc.lvars) # Local variables + arguments count
 
@@ -997,9 +1014,11 @@ def build_prompt(func_ea, task_tag, args=None):
 
         # --- Data Flow Analysis ---
         data_flow_str = ""
+        data_flow_analyzer = None  # 初始化为 None
         if DATA_FLOW_ANALYSIS_ENABLED:
             data_flow_analyzer = DataFlowAnalyzer(MAX_TRACE_CALLEE_DEPTH, MAX_TRACE_CALLER_DEPTH)
-            raw_data_flow = data_flow_analyzer.get_var_dataflow(func_ea, args['var_name'] if 'var_name' in args else None) # Assuming 'var_name' for specific vars
+            var_name_arg = args.get('var_name') if isinstance(args, dict) else None
+            raw_data_flow = data_flow_analyzer.get_var_dataflow(func_ea, var_name_arg)
             # Filter data flow by context functions (if any)
             # This is complex, assuming `filter_data_flow_by_context_func` is a method that takes raw_data_flow and context functions
             # Simplified for now, just format the raw data flow.
@@ -1053,14 +1072,13 @@ def build_prompt(func_ea, task_tag, args=None):
             # Get local variables and arguments.
             all_vars_info = get_var_info(list(cfunc.lvars) + list(cfunc.arguments))
             var_data_flow_str = ""
-            if DATA_FLOW_ANALYSIS_ENABLED:
-                var_data_flow_str = DATA_FLOW_TEMPLATE.format(data_flow_analyzer.get_var_dataflow(func_ea, None))
-                # Need to filter `var_data_flow_str` by `context_builder.analyzed_funcs` as seen in original bytecode.
-                # Assuming `filter_data_flow_by_context_func` is part of DataFlowAnalyzer
-                var_data_flow_str = data_flow_analyzer.filter_data_flow_by_context_func(var_data_flow_str, context_builder.get_incontext_funcs())
-                var_data_flow_str = DATA_FLOW_TEMPLATE.format(var_data_flow_str)
+            if DATA_FLOW_ANALYSIS_ENABLED and data_flow_analyzer:
+                raw_var_data_flow = data_flow_analyzer.get_var_dataflow(func_ea, None)
+                if raw_var_data_flow:
+                    var_data_flow_str = data_flow_analyzer.filter_data_flow_by_context_func(raw_var_data_flow, context_builder.get_incontext_funcs())
+                var_data_flow_str = DATA_FLOW_TEMPLATE.format(var_data_flow_str or "")
             else:
-                 var_data_flow_str = DATA_FLOW_TEMPLATE.format("")
+                var_data_flow_str = DATA_FLOW_TEMPLATE.format("")
 
             # This part is highly simplified. Original bytecode indicates complex formatting
             # iterating through parsed var_info to build string representation.
@@ -1084,12 +1102,14 @@ def build_prompt(func_ea, task_tag, args=None):
             # Similar to vars, but only for arguments
             args_info = get_var_info(list(cfunc.arguments))
             args_data_flow_str = ""
-            if DATA_FLOW_ANALYSIS_ENABLED:
-                args_data_flow_str = DATA_FLOW_TEMPLATE.format(data_flow_analyzer.get_var_dataflow(func_ea, [arg[0] for arg in args_info]))
-                args_data_flow_str = data_flow_analyzer.filter_data_flow_by_context_func(args_data_flow_str, context_builder.get_incontext_funcs())
-                args_data_flow_str = DATA_FLOW_TEMPLATE.format(args_data_flow_str)
+            if DATA_FLOW_ANALYSIS_ENABLED and data_flow_analyzer:
+                arg_names = [arg[0] for arg in args_info] if args_info else None
+                raw_args_data_flow = data_flow_analyzer.get_var_dataflow(func_ea, arg_names)
+                if raw_args_data_flow:
+                    args_data_flow_str = data_flow_analyzer.filter_data_flow_by_context_func(raw_args_data_flow, context_builder.get_incontext_funcs())
+                args_data_flow_str = DATA_FLOW_TEMPLATE.format(args_data_flow_str or "")
             else:
-                 args_data_flow_str = DATA_FLOW_TEMPLATE.format("")
+                args_data_flow_str = DATA_FLOW_TEMPLATE.format("")
             
             arg_declarations_str = "\n".join([f"{v[1]} {v[0]} // at {v[2]}" for v in args_info])
 
@@ -1135,12 +1155,13 @@ def build_prompt(func_ea, task_tag, args=None):
                     print(f"[!] Variable '{var_name}' not found in function {demangled_func_name}")
 
             specific_vars_data_flow_str = ""
-            if DATA_FLOW_ANALYSIS_ENABLED:
-                specific_vars_data_flow_str = DATA_FLOW_TEMPLATE.format(data_flow_analyzer.get_var_dataflow(func_ea, specific_var_names))
-                specific_vars_data_flow_str = data_flow_analyzer.filter_data_flow_by_context_func(specific_vars_data_flow_str, context_builder.get_incontext_funcs())
-                specific_vars_data_flow_str = DATA_FLOW_TEMPLATE.format(specific_vars_data_flow_str)
+            if DATA_FLOW_ANALYSIS_ENABLED and data_flow_analyzer:
+                raw_specific_vars_data_flow = data_flow_analyzer.get_var_dataflow(func_ea, specific_var_names)
+                if raw_specific_vars_data_flow:
+                    specific_vars_data_flow_str = data_flow_analyzer.filter_data_flow_by_context_func(raw_specific_vars_data_flow, context_builder.get_incontext_funcs())
+                specific_vars_data_flow_str = DATA_FLOW_TEMPLATE.format(specific_vars_data_flow_str or "")
             else:
-                 specific_vars_data_flow_str = DATA_FLOW_TEMPLATE.format("")
+                specific_vars_data_flow_str = DATA_FLOW_TEMPLATE.format("")
             
             # Format output for specific vars
             specific_var_declarations_str = "\n".join([f"{v[1]} {v[0]} // at {v[2]}" for v in specific_vars_info])

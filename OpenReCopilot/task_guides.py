@@ -6,7 +6,10 @@ import random
 # --- 任务指南字符串 ---
 # (这些是直接从字节码的常量池中提取的超长字符串)
 
-func_analysis_guide = """1. Understand the Task 
+func_analysis_guide = """
+**CRITICAL: You MUST output your final result in JSON format wrapped with <Output>...</Output> tags. Do NOT output plain text analysis as the final result.**
+
+## 1. Understand the Task
 What should be analyzed in the task.
 List the objects within the target function should be analyzed base on the specific task, such as args, vars, func name, etc.
 
@@ -166,12 +169,13 @@ struct struct_type_a { // present the complex types recovered in the analysis
 void foo(int arg1, struct_type_a arg2, ...) {
     ...
 }
-&lt;/Output>
-The &lt;Output>...&lt;/Output> shoud be the end of the reasoning process, and do not append more explain after it."""
+</Output>
+The <Output>...</Output> shoud be the end of the reasoning process, and do not append more explain after it."""
 
 specific_vars_guide = """
+**CRITICAL: You MUST output your final result in JSON format wrapped with <Output>...</Output> tags. Do NOT output plain text analysis as the final result.**
 
-Understand the Task
+## 1. Understand the Task
 What should be analyzed in the task.
 List the objects within the target function should be analyzed base on the specific task, such as args, vars, func name, etc.
 
@@ -203,16 +207,16 @@ Recover the name of the target variable, specified by task tag, base on the anal
 Review and Summary
 Review the analysis check reasoning process.
 Describe the key basis for inferring the result for the target variable.
-Summarize the final results wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
+Summarize the final results wrapped with <Output>...</Output> in JSON format, such as:
 
-&lt;Output>
+<Output>
 {
 "original": ["__int64", "v1"],
 "prediction": ["char", "name1", "", {}] // type, name, is_complex_type?, and struct or enum details
 }
-&lt;/Output>
+</Output>
 or
-&lt;Output>
+<Output>
 {
 "original": ["__int64", "v1"],
 "prediction": ["struct_type_a *", "name1", "struct", {"struct_type_a": [
@@ -222,9 +226,9 @@ or
 ]}
 ]
 }
-&lt;/Output>
+</Output>
 or
-&lt;Output>
+<Output>
 {
 "original": ["__uint8","v1"],
 "prediction": ["enum_type_a","name1","enum",{"enum_type_a": [
@@ -234,21 +238,24 @@ or
 ]}
 ]
 }
-&lt;/Output>
+</Output>
 or
-&lt;Output>
+<Output>
 {
 "original": ["__int64 *","v1"],
 "prediction": ["int","name1","array","4,4"] // array type, name, array size
 }
-&lt;/Output>
+</Output>
 The prediction of the variable is a list including type, name, is_complex_type?, and complex type details, respectively.
 The third element, is_complex_type?, indicates whether the variable is a complex type, such as struct, enum, and array, keep "" if not.
-If multiple variables are analyzed, the output should be a list of the above format wrapped with one &lt;Output>...&lt;/Output>.
-The &lt;Output>...&lt;/Output> shoud be the end of the reasoning process, and do not append more explain after it.
+If multiple variables are analyzed, the output should be a list of the above format wrapped with one <Output>...</Output>.
+The <Output>...</Output> shoud be the end of the reasoning process, and do not append more explain after it.
 """
 
-ars_guide = """1. Understand the Task
+vars_guide = """
+**CRITICAL: You MUST output your final result in JSON format wrapped with <Output>...</Output> tags. Do NOT output plain text analysis as the final result.**
+
+## 1. Understand the Task
 What should be analyzed in the task.
 List the objects within the target function should be analyzed base on the specific task, such as args, vars, func name, etc.
 
@@ -280,9 +287,9 @@ Recover the name of each variable within target function base on the analysis ab
 Review and Summary
 Review the analysis check reasoning process.
 Describe the key basis for inferring the result for each target variable.
-Summarize the final results wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
+Summarize the final results wrapped with <Output>...</Output> in JSON format, such as:
 
-&lt;Output>
+<Output>
 [
 {
 "original": ["__int64","v1"],
@@ -312,10 +319,10 @@ Summarize the final results wrapped with &lt;Output>...&lt;/Output> in JSON form
 }
 ...
 ]
-&lt;/Output>
+</Output>
 The prediction of the variable is a list including type, name, is_complex_type?, and complex type details, respectively.
 The third element, is_complex_type?, indicates whether the variable is a complex type, such as struct, enum, and array, keep "" if not.
-The &lt;Output>...&lt;/Output> shoud be the end of the reasoning process, and do not append more explain after it.
+The <Output>...</Output> shoud be the end of the reasoning process, and do not append more explain after it.
 """
 
 args_guide = """1. Understand the Task
@@ -350,9 +357,9 @@ Recover the name of each argument within target function base on the analysis ab
 Review and Summary
 Review the analysis check reasoning process.
 Describe the key basis for inferring the result for each target argument.
-Summarize the final results wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
+Summarize the final results wrapped with <Output>...</Output> in JSON format, such as:
 
-&lt;Output>
+<Output>
 [
 {
 "original": ["__int64","a1"],
@@ -390,10 +397,10 @@ Summarize the final results wrapped with &lt;Output>...&lt;/Output> in JSON form
 }
 ...
 ]
-&lt;/Output>
+</Output>
 The prediction of the variable/argument is a list including type, name, is_complex_type?, and complex type details, respectively.
 The third element, is_complex_type?, indicates whether the variable/argument is a complex type, such as struct, enum, and array, keep "" if not.
-The &lt;Output>...&lt;/Output> shoud be the end of the reasoning process, and do not append more explain after it.
+The <Output>...</Output> shoud be the end of the reasoning process, and do not append more explain after it.
 """
 
 funcname_guide = """
@@ -420,15 +427,15 @@ Infer the possible function names for all functions based on the analysis above.
 Review and Summary
 Review the analysis check reasoning process.
 Describe the key basis for inferring the result.
-Summarize the final results wrapped with &lt;Output>...&lt;/Output>, such as:
+Summarize the final results wrapped with <Output>...</Output>, such as:
 
-&lt;Output>
+<Output>
 [
 {"original": "sub_0xFuncAddr", "prediction": "foo"},
 ...
 ]
-&lt;/Output>
-The &lt;Output>...&lt;/Output> shoud be the end of the reasoning process, and do not append more explain after it.
+</Output>
+The <Output>...</Output> shoud be the end of the reasoning process, and do not append more explain after it.
 """
 
 summary_guide = """
@@ -462,8 +469,8 @@ a. Generate doxygen comments for the whole target function based on the analysis
 b. Generate inline comments (end of the line) for the target function for only key lines based on the analysis above to help user understand the code. Only comment on the key lines, such as some callsites, some important variables and usages, beginning of some loops, etc.
 <!-- end list -->
 
-Review and Summary Review the analysis check reasoning process. Describe the key basis for inferring the result. Summarize the final results wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
-&lt;Output>
+Review and Summary Review the analysis check reasoning process. Describe the key basis for inferring the result. Summarize the final results wrapped with <Output>...</Output> in JSON format, such as:
+<Output>
 {
 "brief": "brief description",
 "details": "detailed description",
@@ -481,14 +488,17 @@ Review and Summary Review the analysis check reasoning process. Describe the key
 "category": "functional category or none",
 "algorithm": "algorithm name or none"
 }
-&lt;/Output>
-The &lt;Output>...&lt;/Output> shoud be the end of the reasoning process, and do not append more explain after it.
+</Output>
+The <Output>...</Output> shoud be the end of the reasoning process, and do not append more explain after it.
 """
 
---- 任务输出格式字符串 ---
+# 任务输出格式字符串
 func_analysis_output_format_str = """
-The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
-&lt;Output>
+**IMPORTANT: Your response MUST end with a valid JSON object wrapped in <Output>...</Output> tags.**
+**Do NOT provide additional explanation after the <Output> block.**
+
+The final results MUST be wrapped with <Output>...</Output> in JSON format. Example:
+<Output>
 {
 "ret_type": "int",
 "funcname": "foo", // recovered meaningful function name for meaningless original name
@@ -537,14 +547,14 @@ The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON form
 "category": "functional category or none",
 "algorithm": "algorithm name or none"
 }
-&lt;/Output>
+</Output>
 The prediction of the variable/argument is a list including type, name, is_complex_type?, and complex type details, respectively.
 The third element, is_complex_type?, indicates whether the variable/argument is a complex type, such as struct, enum, and array, keep "" if not.
 """
 
 decompilation_output_format_str = """
-the final results should be the decompiled source code with Doxygen comment wrapped with &lt;Output>...&lt;/Output>, as well as the complex types recovered in the analysis, such as:
-&lt;Output>
+the final results should be the decompiled source code with Doxygen comment wrapped with <Output>...</Output>, as well as the complex types recovered in the analysis, such as:
+<Output>
 /**
  * @brief brief description
  * @details detailed description
@@ -561,19 +571,22 @@ struct struct_type_a { // present the complex types recovered in the analysis
 void foo(int arg1, struct_type_a arg2, ...) {
     ...
 }
-&lt;/Output>
+</Output>
 """
 
 specific_vars_output_format_str = """
-The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
-&lt;Output>
+**IMPORTANT: Your response MUST end with a valid JSON object wrapped in <Output>...</Output> tags.**
+**Do NOT provide additional explanation after the <Output> block.**
+
+The final results MUST be wrapped with <Output>...</Output> in JSON format. Examples:
+<Output>
 {
 "original": ["__int64", "v1"],
 "prediction": ["char", "name1", "", {}] // type, name, is_complex_type?, and struct or enum details
 }
-&lt;/Output>
+</Output>
 or
-&lt;Output>
+<Output>
 {
 "original": ["__int64", "v1"],
 "prediction": ["struct_type_a *", "name1", "struct", {"struct_type_a": [
@@ -583,9 +596,9 @@ or
 ]}
 ]
 }
-&lt;/Output>
+</Output>
 or
-&lt;Output>
+<Output>
 {
 "original": ["__uint8","v1"],
 "prediction": ["enum_type_a","name1","enum",{"enum_type_a": [
@@ -595,22 +608,25 @@ or
 ]}
 ]
 }
-&lt;/Output>
+</Output>
 or
-&lt;Output>
+<Output>
 {
 "original": ["__int64 *","v1"],
 "prediction": ["int","name1","array","4,4"] // array type, name, array size
 }
-&lt;/Output>
+</Output>
 The prediction of the variable/argument is a list including type, name, is_complex_type?, and complex type details, respectively.
 The third element, is_complex_type?, indicates whether the variable/argument is a complex type, such as struct, enum, and array, keep "" if not.
-If multiple variables/arguments are analyzed, the output should be a list of the above format wrapped with one &lt;Output>...&lt;/Output>.
+If multiple variables/arguments are analyzed, the output should be a list of the above format wrapped with one <Output>...</Output>.
 """
 
 vars_output_format_str = """
-The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
-&lt;Output>
+**IMPORTANT: Your response MUST end with a valid JSON array wrapped in <Output>...</Output> tags.**
+**Do NOT provide additional explanation after the <Output> block.**
+
+The final results MUST be wrapped with <Output>...</Output> in JSON format. Example:
+<Output>
 [
 {
 "original": ["__int64","v1"],
@@ -640,14 +656,14 @@ The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON form
 }
 ...
 ]
-&lt;/Output>
+</Output>
 The prediction of the variable/argument is a list including type, name, is_complex_type?, and complex type details, respectively.
 The third element, is_complex_type?, indicates whether the variable/argument is a complex type, such as struct, enum, and array, keep "" if not.
 """
 
 args_output_format_str = """
-The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
-&lt;Output>
+The final results should be wrapped with <Output>...</Output> in JSON format, such as:
+<Output>
 [
 {
 "original": ["__int64","a1"],
@@ -685,24 +701,24 @@ The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON form
 }
 ...
 ]
-&lt;/Output>
+</Output>
 The prediction of the variable/argument is a list including type, name, is_complex_type?, and complex type details, respectively.
 The third element, is_complex_type?, indicates whether the variable/argument is a complex type, such as struct, enum, and array, keep "" if not.
 """
 
 funcname_output_format_str = """
-The final results should be wrapped with &lt;Output>...&lt;/Output>, such as:
-&lt;Output>
+The final results should be wrapped with <Output>...</Output>, such as:
+<Output>
 [
 {"original": "sub_0xFuncAddr", "prediction": "foo"},
 ...
 ]
-&lt;/Output>
+</Output>
 """
 
 summary_output_format_str = """
-The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON format, such as:
-&lt;Output>
+The final results should be wrapped with <Output>...</Output> in JSON format, such as:
+<Output>
 {
 "brief": "brief description",
 "details": "detailed description",
@@ -720,27 +736,27 @@ The final results should be wrapped with &lt;Output>...&lt;/Output> in JSON form
 "category": "functional category or none",
 "algorithm": "algorithm name or none"
 }
-&lt;/Output>
+</Output>
 """
 
 TASK_GUIDES = {
-'&lt;func-analysis>': func_analysis_guide,
-'&lt;decompilation>': decompilation_guide,
-'&lt;specific-vars>': specific_vars_guide,
-'&lt;vars>': vars_guide,
-'&lt;args>': args_guide,
-'&lt;funcname>': funcname_guide,
-'&lt;summary>': summary_guide,
+'<func-analysis>': func_analysis_guide,
+'<decompilation>': decompilation_guide,
+'<specific-vars>': specific_vars_guide,
+'<vars>': vars_guide,
+'<args>': args_guide,
+'<funcname>': funcname_guide,
+'<summary>': summary_guide,
 }
 
 TASK_OUTPUT_FORMATS = {
-'&lt;func-analysis>': func_analysis_output_format_str,
-'&lt;decompilation>': decompilation_output_format_str,
-'&lt;specific-vars>': specific_vars_output_format_str,
-'&lt;vars>': vars_output_format_str,
-'&lt;args>': args_output_format_str,
-'&lt;funcname>': funcname_output_format_str,
-'&lt;summary>': summary_output_format_str,
+'<func-analysis>': func_analysis_output_format_str,
+'<decompilation>': decompilation_output_format_str,
+'<specific-vars>': specific_vars_output_format_str,
+'<vars>': vars_output_format_str,
+'<args>': args_output_format_str,
+'<funcname>': funcname_output_format_str,
+'<summary>': summary_output_format_str,
 }
 
 def get_mock_response(task_tag):
@@ -750,7 +766,7 @@ def get_mock_response(task_tag):
     # PyArmor 保护代码已省略
     mock_data = {}
     # 获取当前脚本所在的目录
-    current_dir = os.path.dirname(file) # file 在 &lt;frozen ...> 环境下可能行为不同
+    current_dir = os.path.dirname(__file__)
     # 字节码直接使用了 file
     mock_file_path = os.path.join(current_dir, 'debug_mock.json')
 

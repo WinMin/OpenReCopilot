@@ -34,12 +34,16 @@ class ReCopilotSettingsManager:
 
     def get_default_settings(self):
         """Get default settings dictionary."""
-        # PyArmor 相关的 __assert_armored__ 和 __pyarmor_enter/exit__ 调用被忽略
+        # 支持第三方API配置:
+        # - OpenAI: base_url留空, api_key填写sk-xxx, model_name如gpt-4o
+        # - Claude (via OpenAI兼容): base_url=https://api.anthropic.com, model_name=claude-3-opus-20240229
+        # - DeepSeek: base_url=https://api.deepseek.com, model_name=deepseek-chat
+        # - 本地Ollama: base_url=http://localhost:11434, model_name=llama3
         return {
-            'model_name': 'recopilot-v0.1-beta-dpo',
-            'base_url': 'http://localhost:8000',
-            'api_key': 'sk-none',
-            'prompt_template': 'recopilot', # 默认使用的提示模板键名
+            'model_name': 'gpt-4o',  # 默认使用OpenAI GPT-4o
+            'base_url': '',  # 留空使用OpenAI官方API
+            'api_key': '',  # 需要用户填写
+            'prompt_template': 'general', # 默认使用通用提示模板
             'max_output_tokens': 8000,
             'max_trace_caller_depth': 1,
             'max_trace_callee_depth': 1,
