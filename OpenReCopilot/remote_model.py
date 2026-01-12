@@ -1,4 +1,5 @@
 import openai # pip install openai
+import anthropic # pip install anthropic
 import time
 import asyncio
 import traceback # 用于打印异常堆栈
@@ -15,6 +16,10 @@ class OpenAIModel:
         super().__init__() # 虽然字节码中没有明确的父类，但 super() 调用通常存在
         self._current_completion = None # 用于存储活动的流式 API 调用对象
         self._cancelled = False         # 取消标志
+
+    def _is_anthropic_api(self, base_url: str) -> bool:
+        """检测是否为 Anthropic API。"""
+        return 'anthropic' in base_url.lower() if base_url else False
 
     def cancel(self):
         """取消当前正在进行的模型调用。"""
@@ -68,12 +73,22 @@ class OpenAIModel:
             print(f"[🔗] OpenAIModel.call_model: model_name={model_name_setting}, timeout={timeout}s")
             print(f"[🔗] OpenAIModel.call_model: send {len(formatted_prompt)} chars prompt")
 
-        # 3. 初始化 OpenAI 异步客户端（支持第三方API）
+        # 3. 初始化 API 客户端（支持 OpenAI 兼容和 Anthropic）
         try:
             base_url = settings_manager.settings.get('base_url', '')
             api_key = settings_manager.settings.get('api_key', 'sk-none')
             model_name = settings_manager.settings.get('model_name', 'gpt-3.5-turbo')
 
+            print(f"[🔗] Calling model: {model_name} at {base_url or 'OpenAI default'}")
+
+            # 检测是否为 Anthropic API
+            if self._is_anthropic_api(base_url):
+                # 使用 Anthropic 客户端
+                return await self._call_anthropic_model(
+                    formatted_prompt, model_name, api_key, base_url, timeout, prompt_for_feedback
+                )
+            
+            # 使用 OpenAI 兼容客户端
             # 构建客户端参数
             client_args = {'api_key': api_key}
             if base_url:
@@ -90,8 +105,6 @@ class OpenAIModel:
 
             # 4. 构建消息并发送请求
             messages = [{"role": "user", "content": formatted_prompt}]
-
-            print(f"[🔗] Calling model: {model_name} at {base_url or 'OpenAI default'}")
 
             self._current_completion = await client.chat.completions.create(
                 model=model_name,
@@ -149,6 +162,74 @@ class OpenAIModel:
             print(f"[!💥] Error in OpenAIModel.call_model: {e}")
             traceback.print_exc()
             self._current_completion = None # 清理
+            return f"<RequestException>{str(e)}", prompt_for_feedback
+
+    async def _call_anthropic_model(self, formatted_prompt: str, model_name: str, 
+                                     api_key: str, base_url: str, timeout: int, prompt_for_feedback: str):
+        """
+        使用 Anthropic API 调用 Claude 模型。
+        
+        Args:
+            formatted_prompt: 格式化后的提示词
+            model_name: 模型名称 (如 claude-sonnet-4-20250514)
+            api_key: Anthropic API 密钥
+            base_url: API 基础 URL (如 https://open.bigmodel.cn/api/anthropic)
+            timeout: 超时时间（秒）
+            prompt_for_feedback: 用于反馈的原始提示词
+            
+        Returns:
+            元组 (响应文本, 原始提示词)
+        """
+        try:
+            # 构建客户端参数
+            client_args = {'api_key': api_key}
+            if base_url:
+                client_args['base_url'] = base_url
+            
+            client = anthropic.AsyncAnthropic(**client_args)
+            
+            # 构建消息
+            messages = [{"role": "user", "content": formatted_prompt}]
+            
+            # 创建流式请求
+            reasoning_content_parts = []
+            
+            async with client.messages.stream(
+                model=model_name,
+                max_tokens=settings_manager.settings.get('max_output_tokens', 2048),
+                messages=messages,
+            ) as stream:
+                self._current_completion = stream
+                async for text in stream.text_stream:
+                    if self._cancelled:
+                        print("\n[!💥] Analysis cancelled by user (during Anthropic streaming)")
+                        self._current_completion = None
+                        return "<Cancelled>Analysis cancelled by user", prompt_for_feedback
+                    
+                    print(text, end="")
+                    reasoning_content_parts.append(text)
+            
+            print()  # 在流结束后换行
+            self._current_completion = None
+            final_response_text = "".join(reasoning_content_parts)
+            return final_response_text, prompt_for_feedback
+            
+        except anthropic.APIConnectionError as e:
+            print(f"[!💥] Error: Failed to connect to Anthropic API: {e}")
+            self._current_completion = None
+            return f"<RequestException>Connection failed: {e}", prompt_for_feedback
+        except anthropic.AuthenticationError as e:
+            print(f"[!💥] Error: Anthropic API authentication failed: {e}")
+            self._current_completion = None
+            return f"<RequestException>Authentication failed - check your API key: {e}", prompt_for_feedback
+        except anthropic.RateLimitError as e:
+            print(f"[!💥] Error: Anthropic API rate limit exceeded: {e}")
+            self._current_completion = None
+            return f"<RequestException>Rate limit exceeded: {e}", prompt_for_feedback
+        except Exception as e:
+            print(f"[!💥] Error in Anthropic API call: {e}")
+            traceback.print_exc()
+            self._current_completion = None
             return f"<RequestException>{str(e)}", prompt_for_feedback
 
     async def call_model_mock(self, prompt: str, task_tag: str, timeout: int = 600):

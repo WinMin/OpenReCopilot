@@ -16,7 +16,6 @@ from PyQt5.QtWidgets import (
 )
 from ext_info import apply_prediction
 from config import settings_manager, PROMPT_TEMPLATE
-from feedback import send_feedback
 from remote_model import OpenAIModel
 
 def create_variable_selection_view(ea):
@@ -852,10 +851,6 @@ class UserConfirmForm(ida_kernwin.PluginForm):
             elif isinstance(widget, dict): # For args and vars (complex types)
                 accepted_content[key] = {name: data for name, w in widget.items() if (data := w.get_type_info()) is not None}
 
-        # Send feedback if enabled
-        if settings_manager.settings['feedback']:
-            send_feedback(self.prompt, self.response_raw, accepted_content, self.task_tag)
-        
         apply_prediction(self.ea, self.task_tag, accepted_content)
         self.Close(0)
 
@@ -916,9 +911,6 @@ class UserConfirmFormForFuncName(ida_kernwin.PluginForm):
         for item in self.widgets:
             if item['widget'].accepted:
                 accepted_content['funcname'] = {'original': item['original'], 'prediction': item['widget'].get_content()}
-
-        if settings_manager.settings['feedback']:
-            send_feedback(self.prompt, self.response_raw, accepted_content, self.task_tag)
         
         apply_prediction(self.ea, self.task_tag, accepted_content)
         self.Close(0)

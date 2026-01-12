@@ -31,8 +31,6 @@ from checker import (
     response_check_and_refine, split_pred_to_var_arg,
     parse_model_response_json, parse_model_response_str, get_func_args_vars
 )
-from feedback import send_feedback
-
 
 # --- Configure Logging ---
 # Suppress verbose logging from requests and urllib3
