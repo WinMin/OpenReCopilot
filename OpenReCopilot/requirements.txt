@@ -4,6 +4,9 @@
 # OpenAI API client
 openai>=1.58.1
 
+# Anthropic API client
+anthropic>=0.40.0
+
 # HTTP requests library
 requests>=2.31.0
 

@@ -24,7 +24,6 @@ from checker import (
     parse_model_response_json, parse_model_response_str,
     get_func_args, get_func_args_vars
 )
-from feedback import send_feedback
 
 # 全局AI模型实例
 model = OpenAIModel()
@@ -133,9 +132,6 @@ def common_analysis_logic(ea, task_tag, selected_items=(), response_parser=parse
         checked_response = response_check_and_refine(*refine_args)
 
     ida_execute(view_creator, (ea, task_tag, prompt_for_feedback, model_response_text, checked_response))
-
-    if settings_manager.settings.get('feedback', False):
-        send_feedback(prompt_for_feedback, model_response_text, checked_response, task_tag)
 
 
 def func_analysis(ea):
